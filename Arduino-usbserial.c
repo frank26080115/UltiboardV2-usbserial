@@ -50,6 +50,10 @@ volatile struct
 	uint8_t PingPongLEDPulse; /**< Milliseconds remaining for enumeration Tx/Rx ping-pong LED pulse */
 } PulseMSRemaining;
 
+/** Only auto-reset to work in a certain timeframe - frank26080115 */
+#define ALLOWAUTORESET_RELOAD (5 * 60 * 1000)
+uint32_t AllowAutoReset = 0;
+
 /** LUFA CDC Class driver interface configuration and state information. This structure is
  *  passed to all CDC Class driver functions, so that multiple instances of the same class
  *  within a device can be differentiated from one another.
@@ -120,6 +124,9 @@ int main(void)
 			/* Turn off RX LED(s) once the RX pulse period has elapsed */
 			if (PulseMSRemaining.RxLEDPulse && !(--PulseMSRemaining.RxLEDPulse))
 			  LEDs_TurnOffLEDs(LEDMASK_RX);
+
+			/* Only allow auto-reset for a certain period of time */
+			AllowAutoReset = AllowAutoReset > 0 ? AllowAutoReset - 1 : 0;
 		}
 		
 		/* Load the next byte from the USART transmit buffer into the USART */
@@ -214,6 +221,12 @@ void EVENT_CDC_Device_LineEncodingChanged(USB_ClassInfo_CDC_Device_t* const CDCI
 	UCSR1C = ConfigMask;
 	UCSR1A = (CDCInterfaceInfo->State.LineEncoding.BaudRateBPS == 57600) ? 0 : (1 << U2X1);
 	UCSR1B = ((1 << RXCIE1) | (1 << TXEN1) | (1 << RXEN1));
+
+	/* The operating system will never issue this command automatically
+	the user or Cura must do this manually, to unlock auto-reset*/
+	if (CDCInterfaceInfo->State.LineEncoding.BaudRateBPS == 300) {
+		AllowAutoReset = ALLOWAUTORESET_RELOAD;
+	}
 }
 
 /** ISR to manage the reception of data from the serial port, placing received bytes into a circular buffer
@@ -235,7 +248,7 @@ void EVENT_CDC_Device_ControLineStateChanged(USB_ClassInfo_CDC_Device_t* const C
 {
 	bool CurrentDTRState = (CDCInterfaceInfo->State.ControlLineStates.HostToDevice & CDC_CONTROL_LINE_OUT_DTR);
 
-	if (CurrentDTRState)
+	if (CurrentDTRState && AllowAutoReset)
 	  AVR_RESET_LINE_PORT &= ~AVR_RESET_LINE_MASK;
 	else
 	  AVR_RESET_LINE_PORT |= AVR_RESET_LINE_MASK;
