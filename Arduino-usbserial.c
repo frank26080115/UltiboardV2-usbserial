@@ -51,7 +51,7 @@ volatile struct
 } PulseMSRemaining;
 
 /** Only auto-reset to work in a certain timeframe - frank26080115 */
-#define ALLOWAUTORESET_RELOAD (5 * 60 * 1000)
+#define ALLOWAUTORESET_RELOAD 73242 // TIMER0 is running at 4.096ms per overflow
 uint32_t AllowAutoReset = 0;
 
 /** LUFA CDC Class driver interface configuration and state information. This structure is
